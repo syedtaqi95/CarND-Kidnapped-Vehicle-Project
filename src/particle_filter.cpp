@@ -21,12 +21,15 @@
 using std::string;
 using std::vector;
 
+// random number generator to use in various methods
+std::default_random_engine gen;
+
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
   /**
-   * TODO: Set the number of particles. Initialize all particles to 
+   * Done: Set the number of particles. Initialize all particles to 
    *   first position (based on estimates of x, y, theta and their uncertainties
    *   from GPS) and all weights to 1. 
-   * TODO: Add random Gaussian noise to each particle.
+   * Done: Add random Gaussian noise to each particle.
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
@@ -37,9 +40,6 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
   std::normal_distribution<double> dist_x(x, std[0]);
   std::normal_distribution<double> dist_y(y, std[1]);
   std::normal_distribution<double> dist_theta(theta, std[2]);
-
-  // Generate random number
-  std::default_random_engine gen;
 
   for (int i = 0; i < num_particles; i++) {
     Particle p_temp;
@@ -55,26 +55,58 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     // Set weight to 1
     p_temp.weight = 1.0f;
 
+    // Append the particle to the object's particles vector
     particles.push_back(p_temp);
   }
+  is_initialized = true;
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], 
                                 double velocity, double yaw_rate) {
   /**
-   * TODO: Add measurements to each particle and add random Gaussian noise.
+   * Done: Add measurements to each particle and add random Gaussian noise.
    * NOTE: When adding noise you may find std::normal_distribution 
    *   and std::default_random_engine useful.
    *  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
    *  http://www.cplusplus.com/reference/random/default_random_engine/
    */
 
+  // Create normal distributions
+  std::normal_distribution<double> noise_x(0, std_pos[0]);
+  std::normal_distribution<double> noise_y(0, std_pos[1]);
+  std::normal_distribution<double> noise_theta(0, std_pos[2]);
+
+  // Loop through all particles
+  for(int i = 0; i < num_particles; i++) {
+    Particle p = particles[i];
+
+    // Calculate new position
+    if(fabs(yaw_rate) < 1e-4) {
+      // Yaw rate is ~ 0
+      p.x += velocity*delta_t*cos(p.theta);
+      p.y += velocity*delta_t*sin(p.theta);
+
+    } else {
+      // Yaw rate is non-zero
+      p.x += velocity/yaw_rate*( sin(p.theta + yaw_rate*delta_t) - sin(p.theta) );
+      p.y += velocity/yaw_rate*( -cos(p.theta + yaw_rate*delta_t) + cos(p.theta) );
+      p.theta += yaw_rate * delta_t;
+    }    
+
+    // Add Gaussian noise
+    p.x += noise_x(gen);
+    p.y += noise_y(gen);
+    p.theta += noise_theta(gen);
+
+    particles[i] = p;
+  }
+
 }
 
 void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, 
                                      vector<LandmarkObs>& observations) {
   /**
-   * TODO: Find the predicted measurement that is closest to each 
+   * Done: Find the predicted measurement that is closest to each 
    *   observed measurement and assign the observed measurement to this 
    *   particular landmark.
    * NOTE: this method will NOT be called by the grading code. But you will 
@@ -82,6 +114,28 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   during the updateWeights phase.
    */
 
+  // Loop through observations
+  for (int i = 0; i < observations.size(); i++) {
+    LandmarkObs obs = observations[i];
+
+    // Initialise matching landmark distance and ID
+    double min_distance = std::numeric_limits<double>::max();
+    int id = -1;
+
+    // Loop through predictions
+    for (int j = 0; j < predicted.size(); j++) {
+      LandmarkObs pred = predicted[j];
+
+      // Find the distance
+      double cur_distance = dist(obs.x, obs.y, pred.x, pred.y);
+
+      if(cur_distance < min_distance) {
+        // Set the obs ID to the pred id
+        observations[i].id = predicted[j].id;
+        min_distance = cur_distance;
+      }
+    }
+  }
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
