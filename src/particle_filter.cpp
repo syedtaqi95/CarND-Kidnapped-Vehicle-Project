@@ -6,7 +6,7 @@
  */
 
 #include "particle_filter.h"
-
+#define USE_MATH_DEFINES
 #include <math.h>
 #include <algorithm>
 #include <iostream>
@@ -30,8 +30,33 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
-  num_particles = 0;  // TODO: Set the number of particles
+  num_particles = 100;  // TODO: Set the number of particles
 
+  // Initialise particles
+  // Create normal distr's for x,y,theta
+  std::normal_distribution<double> dist_x(x, std[0]);
+  std::normal_distribution<double> dist_y(y, std[1]);
+  std::normal_distribution<double> dist_theta(theta, std[2]);
+
+  // Generate random number
+  std::default_random_engine gen;
+
+  for (int i = 0; i < num_particles; i++) {
+    Particle p_temp;
+
+    // Set ID to i
+    p_temp.id = i;
+
+    // Sample from the above distr's to set x,y,theta
+    p_temp.x = dist_x(gen);
+    p_temp.y = dist_y(gen);
+    p_temp.theta = dist_theta(gen);
+
+    // Set weight to 1
+    p_temp.weight = 1.0f;
+
+    particles.push_back(p_temp);
+  }
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], 
