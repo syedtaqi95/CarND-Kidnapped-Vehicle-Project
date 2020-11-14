@@ -154,7 +154,78 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
    *   and the following is a good resource for the actual equation to implement
    *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
    */
+  
+  // Loop through each particle
+  for (int i = 0; i < num_particles; i++) {
+    double x_part = particles[i].x;
+    double y_part = particles[i].y;
+    double theta_part = particles[i].theta;
+    double weight_part = 1.0;
 
+    // Only consider landmarks within sensor range for predictions
+    vector<LandmarkObs> predictions;
+
+    for (int j = 0; j < map_landmarks.landmark_list.size(); j++) {
+      float x_lm = map_landmarks.landmark_list[j].x_f;
+      float y_lm = map_landmarks.landmark_list[j].y_f;
+      int id_lm = map_landmarks.landmark_list[j].id_i;
+
+      if (dist(x_lm, y_lm, x_part, y_part) <= sensor_range) {
+        predictions.push_back(LandmarkObs{id_lm, x_lm, y_lm});
+      }
+    }
+
+    // Convert observations to map coordinates using 2D transform
+    vector<LandmarkObs> transformed_obs;
+
+    for (int j = 0; j < observations.size(); j++) {
+      // Observations in vehicle coordinates
+      double x_obs = observations[j].x;
+      double y_obs = observations[j].y;
+      int id_obs = observations[j].id;
+      
+      // Apply transform
+      x_obs = x_part + x_obs*cos(theta_part) - y_obs*sin(theta_part);
+      y_obs = y_part + x_obs*sin(theta_part) + y_obs*cos(theta_part);
+
+      // Append to transformed_obs
+      transformed_obs.push_back(LandmarkObs{id_obs, x_obs, y_obs});
+    }
+
+    // Perform data association - sets the obs ID to the closest pred landmark ID
+    dataAssociation(predictions, transformed_obs);
+
+    for (int j = 0; j < transformed_obs.size(); j++) {     
+      // Placeholder positions for matches
+      double x_obs, y_obs, x_pred, y_pred; 
+      x_obs = transformed_obs[j].x;
+      y_obs = transformed_obs[j].y;
+
+      for (int k = 0; k < predictions.size(); k++) {
+        if(transformed_obs[j].id == predictions[k].id) {
+          // Assign position values if id's match
+          x_pred = predictions[k].x;
+          y_pred = predictions[k].y;
+        }
+      }
+
+      // Standard deviations
+      double std_x = std_landmark[0];
+      double std_y = std_landmark[1];
+
+      // Calculate Gaussian pdf
+      double norm_term = 1/(2*M_PI*std_x*std_y);
+      double exponent_term1 = -pow(x_obs - x_pred,2)/(2*std_x*std_y);
+      double exponent_term2 = -pow(y_obs - y_pred,2)/(2*std_x*std_y);
+      double pdf_obs =  norm_term * exp(exponent_term1 + exponent_term1);
+
+      // Multiply to current weight
+      weight_part *= pdf_obs;
+    }
+
+    // Update the weight
+    particles[i].weight = weight_part;
+  }
 }
 
 void ParticleFilter::resample() {
@@ -164,6 +235,9 @@ void ParticleFilter::resample() {
    * NOTE: You may find std::discrete_distribution helpful here.
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
+
+  vector<Particle> resampled_particles;
+
 
 }
 
